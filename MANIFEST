@@ -1,0 +1,13 @@
+Changes
+lib/Rose/Class.pm
+lib/Rose/Class/MakeMethods/Generic.pm
+lib/Rose/Class/MakeMethods/Set.pm
+lib/Rose/Object.pm
+lib/Rose/Object/MakeMethods.pm
+lib/Rose/Object/MakeMethods/DateTime.pm
+lib/Rose/Object/MakeMethods/Generic.pm
+Makefile.PL
+MANIFEST
+t/basic.t
+t/makemethods.t
+META.yml                                 Module meta-data (added by MakeMaker)
