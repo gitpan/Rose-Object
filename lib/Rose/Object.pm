@@ -2,7 +2,7 @@ package Rose::Object;
 
 use strict;
 
-our $VERSION = '0.011';
+our $VERSION = '0.013';
 
 sub new
 {
@@ -84,6 +84,6 @@ John C. Siracusa (siracusa@mindspring.com)
 
 =head1 COPYRIGHT
 
-Copyright (c) 2004 by John C. Siracusa.  All rights reserved.  This program is
+Copyright (c) 2005 by John C. Siracusa.  All rights reserved.  This program is
 free software; you can redistribute it and/or modify it under the same terms
 as Perl itself.

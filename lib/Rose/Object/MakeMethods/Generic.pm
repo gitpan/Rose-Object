@@ -4,7 +4,7 @@ use strict;
 
 use Carp();
 
-our $VERSION = '0.011';
+our $VERSION = '0.012';
 
 use Rose::Object::MakeMethods;
 our @ISA = qw(Rose::Object::MakeMethods);
@@ -375,7 +375,7 @@ sub array
       return wantarray ? @{$self->{$key}} : $self->{$key};
     }
   }
-  elsif($interface eq 'get_set_items')
+  elsif($interface eq 'get_set_item')
   {
     $methods{$name} = sub
     {
@@ -473,56 +473,6 @@ sub array
   return \%methods;
 }
 
-sub object_by_id
-{
-  my($class, $name, $args) = @_;
-
-  my %methods;
-
-  my $key = $args->{'hash_key'} || $name;
-  my $interface = $args->{'interface'} || 'get_set';
-
-  my $id_method = $args->{'id_method'} || $args->{'id'} || $name . '_id';
-  my $share_db  = $args->{'share_db'} || 1;
-
-  $methods{$name} = sub
-  {
-    my($self) = shift;
-
-    if(@_)
-    {
-      $self->$id_method($_[0]->id);
-      return $self->{$key} = $_[0];
-    }
-
-    return $self->{$key}  if(defined $self->{$key});
-
-    my $id = $self->$id_method() or return undef;
-
-    my $obj;
-
-    if($share_db)
-    {
-      $obj = $class->new(id => $id,
-                         db => $self->db);
-    }
-    else
-    {
-      $obj = $class->new(id => $id);
-    }
-
-    unless($obj->load)
-    {
-      $self->error("Could not load $class id $id - " . $obj->error);
-      return undef;
-    }
-
-    return $self->{$key} = $obj;
-  };
-
-  return \%methods;
-}
-
 1;
 
 __END__
@@ -556,7 +506,7 @@ Rose::Object::MakeMethods::Generic - Create simple object methods.
     array =>
     [
       jobs       => {},
-      job        => { interface => 'get_set_items', hash_key => 'jobs' },
+      job        => { interface => 'get_set_item', hash_key => 'jobs' },
       clear_jobs => { interface => 'clear', hash_key => 'jobs' },
       reset_jobs => { interface => 'reset', hash_key => 'jobs' },
     ],
@@ -1003,12 +953,12 @@ Behaves like the C<get_set> interface unless the attribute is undefined.
 In that case, it is initialized to an empty array before proceeding as
 usual.
 
-=item C<get_set_items> 
+=item C<get_set_item> 
 
 If called with one argument, returns the item at that array index.
 
 If called with two arguments, sets the item at the array index specified
-by thee first argument to the value specified by the second argument.
+by the first argument to the value specified by the second argument.
 
 Failure to pass any arguments causes a fatal error.
 
@@ -1039,7 +989,7 @@ Example:
       array =>
       [
         jobs       => {},
-        job        => { interface => 'get_set_items', 
+        job        => { interface => 'get_set_item', 
                         hash_key  => 'jobs' },
         clear_jobs => { interface => 'clear', hash_key => 'jobs' },
         reset_jobs => { interface => 'reset', hash_key => 'jobs' },
@@ -1076,6 +1026,6 @@ John C. Siracusa (siracusa@mindspring.com)
 
 =head1 COPYRIGHT
 
-Copyright (c) 2004 by John C. Siracusa.  All rights reserved.  This program is
+Copyright (c) 2005 by John C. Siracusa.  All rights reserved.  This program is
 free software; you can redistribute it and/or modify it under the same terms
 as Perl itself.

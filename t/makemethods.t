@@ -2,7 +2,7 @@
 
 use strict;
 
-use Test::More tests => 261;
+use Test::More tests => 302;
 
 BEGIN
 {
@@ -82,7 +82,7 @@ $p->params({ c => 3, d => 4 });
 
 ok(!$p->param_exists('a'), 'Check for key existence (hash --exists)');
 
-is(join(',', sort $p->param_names), 'c,d', 'Get keynames (hash --keys)');
+is(join(',', sort $p->param_names), 'c,d', 'Get key names (hash --keys)');
 
 is(join(',', sort $p->param_values), '3,4', 'Get key values (hash --values)');
 
@@ -180,16 +180,16 @@ is(join(',', $p->jobs), 'butcher,baker', 'Set list - array ref (array)');
 is(join(',', @{$p->jobs}), 'butcher,baker', 'Get list - array ref (array)');
 
 #
-# array --get_set_items
+# array --get_set_item
 #
 
 $p->jobs([ 'xbutcher', 'xbaker' ]);
 
-is($p->job(0), 'xbutcher', 'Get item by index (array --get_set_items)');
+is($p->job(0), 'xbutcher', 'Get item by index (array --get_set_item)');
 
 $p->job(0 => 'mailman');
 
-is($p->job(0), 'mailman', 'Set item by index (array --get_set_items)');
+is($p->job(0), 'mailman', 'Set item by index (array --get_set_item)');
 
 #
 # array --get_set_init
@@ -324,6 +324,115 @@ is(MySubObject->name(), 'Craig',  'Get named inheritable class attribute (inheri
 is(MySubObject2->name(), 'Anne',  'Get named inheritable class attribute (not inherited) 1');
 is(MySubObject3->name(), 'Anne',  'Get named inheritable class attribute (inherited) 9');
 is(MySubObject4->name, 'Anne', 'Get named inheritable class attribute (inherited) 10');
+
+#
+# hash
+#
+
+ok(!defined MyObject->cparams, 'Get undefined class hash (hash)');
+
+MyObject->cparams(a => 1, b => 2);
+
+is(MyObject->cparam('b'), 2, 'Get class hash key (hash)');
+
+my $ch = MyObject->cparams;
+
+ok(ref $ch eq 'HASH' && $ch->{'a'} == 1 && $ch->{'b'} == 2, 'Get class hash ref (hash --get-set_all)');
+
+my %ch = MyObject->cparams;
+
+ok($ch{'a'} == 1 && $ch{'b'} == 2, 'Get class hash (hash --get-set_all)');
+
+MyObject->cparams({ c => 3, d => 4 });
+
+ok(!MyObject->cparam_exists('a'), 'Check for class hash key existence (hash --exists)');
+
+is(join(',', sort MyObject->cparam_names), 'c,d', 'Get class hash key names (hash --keys)');
+
+is(join(',', sort MyObject->cparam_values), '3,4', 'Get class hash key values (hash --values)');
+
+MyObject->delete_cparam('c');
+
+is(join(',', sort MyObject->cparam_names), 'd', 'Delete cparam (hash --delete)');
+
+MyObject->cparam(f => 7, g => 8);
+
+is(join(',', sort MyObject->cparam_values), '4,7,8', 'Add class hash name/value pairs (hash)');
+
+#
+# inheritable_hash
+#
+
+ok(!defined MyObject->icparams, 'Get undefined inheritable class hash (hash)');
+
+MyObject->icparams(a => 1, b => 2);
+
+is(MyObject->icparam('b'), 2, 'Get inheritable class hash key (hash)');
+
+my $ich = MyObject->icparams;
+
+ok(ref $ich eq 'HASH' && $ich->{'a'} == 1 && $ich->{'b'} == 2, 'Get inheritable class hash ref (hash --get-set_all)');
+
+my %ich = MyObject->icparams;
+
+ok($ich{'a'} == 1 && $ich{'b'} == 2, 'Get inheritable class hash (hash --get-set_all)');
+
+MyObject->icparams({ c => 3, d => 4 });
+
+ok(!MyObject->icparam_exists('a'), 'Check for inheritable class hash key existence (hash --exists)');
+
+is(join(',', sort MyObject->icparam_names), 'c,d', 'Get inheritable class hash key names (hash --keys)');
+
+is(join(',', sort MyObject->icparam_values), '3,4', 'Get inheritable class hash key values (hash --values)');
+
+is(join(',', sort MySubObject->icparam_names), 'c,d', 'Inherited keys 1');
+is(join(',', sort MySubObject->icparam_values), '3,4', 'Inherited values 1');
+
+MyObject->delete_icparam('c');
+
+is(join(',', sort MyObject->icparam_names), 'd', 'Delete icparam (hash --delete)');
+
+MyObject->icparam(f => 7, g => 8);
+
+is(join(',', sort MyObject->icparam_values), '4,7,8', 'Add inheritable class hash name/value pairs (hash)');
+
+is(join(',', sort MySubObject2->icparam_names), 'd,f,g', 'Inherited keys 2');
+is(join(',', sort MySubObject2->icparam_values), '4,7,8', 'Inherited values 2');
+
+is(join(',', sort MySubObject3->icparam_names), 'd,f,g', 'Inherited keys 3');
+is(join(',', sort MySubObject3->icparam_values), '4,7,8', 'Inherited values 3');
+
+is(join(',', sort MySubObject->icparam_names), 'c,d', 'Inherited keys 4');
+is(join(',', sort MySubObject->icparam_values), '3,4', 'Inherited values 4');
+
+ok(!MySubObject->icparam_exists('f'), 'Inherited exists 1');
+ok(MySubObject2->icparam_exists('f'), 'Inherited exists 2');
+ok(MySubObject3->icparam_exists('f'), 'Inherited exists 3');
+
+MySubObject3->delete_icparam('f');
+MySubObject3->icparam('d' => 9);
+
+is(join(',', sort MySubObject->icparam_names), 'c,d', 'Inherited keys 5');
+is(join(',', sort MySubObject->icparam_values), '3,4', 'Inherited values 5');
+
+is(join(',', sort MySubObject2->icparam_names), 'd,f,g', 'Inherited keys 6');
+is(join(',', sort MySubObject2->icparam_values), '4,7,8', 'Inherited values 6');
+
+is(join(',', sort MySubObject3->icparam_names), 'd,g', 'Inherited keys 7');
+is(join(',', sort MySubObject3->icparam_values), '8,9', 'Inherited values 7');
+
+is(join(',', sort MySubObject4->icparam_names), 'd,g', 'Inherited keys 8');
+is(join(',', sort MySubObject4->icparam_values), '8,9', 'Inherited values 8');
+
+MySubObject->reset_icparams;
+
+is(join(',', sort MySubObject->icparam_names), 'd,f,g', 'reset_icparams() 1');
+is(join(',', sort MySubObject->icparam_values), '4,7,8', 'reset_icparams() 2');
+
+MySubObject->clear_icparams;
+
+is(join(',', sort MySubObject->icparam_names), '', 'clear_icparams() 1');
+is(join(',', sort MySubObject->icparam_values), '', 'clear_icparams() 2');
 
 #
 # inheritable_set
@@ -647,7 +756,7 @@ BEGIN
 
     array =>
     [
-      job        => { interface => 'get_set_items', hash_key => 'jobs' },
+      job        => { interface => 'get_set_item', hash_key => 'jobs' },
       clear_jobs => { interface => 'clear', hash_key => 'jobs' },
     ],
 
@@ -706,6 +815,32 @@ BEGIN
       'flub',
       'class_type' => { interface => 'get_set_init' },
     ],
+
+    hash =>
+    [
+      cparam          => { hash_key => 'cparams' },
+      cparams         => { interface => 'get_set_all' },
+      cparam_names    => { interface => 'keys', hash_key => 'cparams' },
+      cparam_values   => { interface => 'values', hash_key => 'cparams' },
+      cparam_exists   => { interface => 'exists', hash_key => 'cparams' },
+      delete_cparam   => { interface => 'delete', hash_key => 'cparams' },
+
+      clear_cparams   => { interface => 'clear', hash_key => 'cparams' },
+    ],
+
+    inheritable_hash =>
+    [
+      icparam          => { hash_key => 'icparams' },
+      icparams         => { interface => 'get_set_all' },
+      icparam_names    => { interface => 'keys', hash_key => 'icparams' },
+      icparam_values   => { interface => 'values', hash_key => 'icparams' },
+      icparam_exists   => { interface => 'exists', hash_key => 'icparams' },
+      delete_icparam   => { interface => 'delete', hash_key => 'icparams' },
+
+      clear_icparams   => { interface => 'clear', hash_key => 'icparams' },
+      reset_icparams   => { interface => 'reset', hash_key => 'icparams' },
+    ],
+
   );
 
   sub init_class_type { 'wacky' }

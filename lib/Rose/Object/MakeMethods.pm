@@ -4,7 +4,7 @@ use strict;
 
 use Carp();
 
-our $VERSION = '0.011';
+our $VERSION = '0.012';
 
 sub import
 {
@@ -78,11 +78,17 @@ sub __make_methods
       Carp::croak "${class}::method_type(...) - key for $name is not a code ref!"
         unless(ref $code eq 'CODE');
 
-      if($target_class->can($name) && !$options->{'override'})
+      if($target_class->can($name))
       {
-        Carp::croak "Cannot create method ${target_class}::$name - method already exists";
+        next  if($options->{'preserve_existing'});
+        
+        unless($options->{'override_existing'})
+        {
+          Carp::croak "Cannot create method ${target_class}::$name - method already exists";
+        }
       }
 
+      no warnings;
       *{"${target_class}::$name"} = $code;
     }
   }
@@ -373,10 +379,10 @@ Is equivalent to this:
 In general, the C<target_class> argument is omitted since methods are
 usually indented to end up in the class of the caller.
 
-=item B<override BOOL>
+=item B<override_existing BOOL>
 
 By default, attempting to create a method that already exists will result
-in a fatal error.  But if the C<override> option is set to a true value,
+in a fatal error.  But if the C<override_existing> option is set to a true value,
 the existing method will be replaced with the generated method.
 
 =back
@@ -392,7 +398,7 @@ The components of such a specification are:
 
 This is the name of the subroutine that will be called in order to generated
 the methods (see SUBCLASSING for more information).  It describes the
-nature of thee generated method.  For example, "scalar", "array", "bitfield",
+nature of the generated method.  For example, "scalar", "array", "bitfield",
 "object"
 
 =item * Method Type Arguments
@@ -524,7 +530,7 @@ different formats.
 
     use Rose::Object::MakeMethods::Generic
     (
-      { override => 1 },
+      { override_existing => 1 },
 
       'bitfield' => [ qw(my_bits other_bits) ],
 
@@ -599,7 +605,7 @@ So why not have the subroutine return a single code reference rather than
 a reference to a hash of name.code reference pairs?  There are two reasons.
 
 First, remember that the name argument ("my_bits", "your_bits", "other_bits")
-may be modified or ignored by thee method maker.  The actual names of the
+may be modified or ignored by the method maker.  The actual names of the
 methods created are determined by the keys of the hash reference returned
 by the subroutine.
 
@@ -711,6 +717,6 @@ John C. Siracusa (siracusa@mindspring.com)
 
 =head1 COPYRIGHT
 
-Copyright (c) 2004 by John C. Siracusa.  All rights reserved.  This program is
+Copyright (c) 2005 by John C. Siracusa.  All rights reserved.  This program is
 free software; you can redistribute it and/or modify it under the same terms
 as Perl itself.

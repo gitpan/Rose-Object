@@ -84,14 +84,16 @@ sub inheritable_set
       {
         if(exists $Inheritable_Set{$name}{$subclass})
         {
-          return $Inheritable_Set{$name}{$class} =
+          $Inheritable_Set{$name}{$class} = 
             { %{$Inheritable_Set{$name}{$subclass}} };
+          last;
         }
       }
     }
 
     $Inheritable_Set{$name}{$class} ||= {};
-    return wantarray ? %{$Inheritable_Set{$name}{$class}} : $Inheritable_Set{$name}{$class};
+    return wantarray ? %{$Inheritable_Set{$name}{$class}} : 
+                       $Inheritable_Set{$name}{$class};
   };
 
   $methods{$list_method} = sub
@@ -991,6 +993,6 @@ John C. Siracusa (siracusa@mindspring.com)
 
 =head1 COPYRIGHT
 
-Copyright (c) 2004 by John C. Siracusa.  All rights reserved.  This program is
+Copyright (c) 2005 by John C. Siracusa.  All rights reserved.  This program is
 free software; you can redistribute it and/or modify it under the same terms
 as Perl itself.
