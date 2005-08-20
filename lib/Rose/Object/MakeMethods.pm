@@ -306,22 +306,22 @@ C<Rose::Object::MakeMethods> that define the names and options of the
 different kinds of methods that they can make.
 
 There are method makers that make both object methods and class methods.
-The object method makers are in the C<Rose::Object::MakeMethods::*>
+The object method makers are in the L<Rose::Object::MakeMethods::*>
 namespace. The class method makers are in
-the C<Rose::Class::MakeMethods::*> namespace for the sake of clarity, but
+the L<Rose::Class::MakeMethods::*> namespace for the sake of clarity, but
 still inherit from C<Rose::Object::MakeMethods> and therefore share the
 same method making interface.
 
 Several useful method makers are included under the
-C<Rose::Object::MakeMethods::*> and C<Rose::Class::MakeMethods::*>
-namespaces, mostly for use by other C<Rose::*> objects and classes. 
+L<Rose::Object::MakeMethods::*> and L<Rose::Class::MakeMethods::*>
+namespaces, mostly for use by other L<Rose::*> objects and classes. 
 
 This family of modules is not as powerful or flexible as the one that
 inspired it: C<Class::MethodMaker>.  I found that I was only using a tiny
 corner of the functionality provided by C<Class::MethodMaker>, so I wrote
 this as a simple, smaller replacement.
 
-The fact that many C<Rose::*> modules use C<Rose::Object::MakeMethods>
+The fact that many L<Rose::*> modules use C<Rose::Object::MakeMethods>
 subclasses to make their methods should be considered an implementation
 detail that can change at any time.
 
@@ -707,8 +707,8 @@ It can be used like this:
     $o->power(99) or die $o->error;
 
 This is actually a subset of the code in the actual
-C<Rose::Object::MakeMethods::Generic> module.  See the rest of the
-C<Rose::Object::MakeMethods::*> and C<Rose::Class::MakeMethods::*>
+L<Rose::Object::MakeMethods::Generic> module.  See the rest of the
+L<Rose::Object::MakeMethods::*> and L<Rose::Class::MakeMethods::*>
 modules for more examples.
 
 =head1 AUTHOR

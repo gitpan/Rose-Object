@@ -471,7 +471,7 @@ Rose::Class::MakeMethods::Generic - Create simple class methods.
 =head1 DESCRIPTION
 
 C<Rose::Class::MakeMethods::Generic> is a method maker that inherits
-from C<Rose::Object::MakeMethods>.  See the C<Rose::Object::MakeMethods>
+from L<Rose::Object::MakeMethods>.  See the L<Rose::Object::MakeMethods>
 documentation to learn about the interface.  The method types provided
 by this module are described below.  All methods work only with
 classes, not objects.

@@ -574,7 +574,7 @@ Rose::Class::MakeMethods::Set - Create class methods to manage sets.
 =head1 DESCRIPTION
 
 C<Rose::Class::MakeMethods::Set> is a method maker that inherits
-from C<Rose::Object::MakeMethods>.  See the C<Rose::Object::MakeMethods>
+from L<Rose::Object::MakeMethods>.  See the L<Rose::Object::MakeMethods>
 documentation to learn about the interface.  The method types provided
 by this module are described below.  All methods work only with
 classes, not objects.
@@ -598,7 +598,7 @@ closest ("least super") class that has ever accessed or manipulated this
 set.
 
 These may sound like wacky rules, but it may help to know that this
-family of methods was created for use in the C<Rose::HTML::Objects>
+family of methods was created for use in the L<Rose::HTML::Objects>
 family of modules to manage the set of required HTML attributes (and
 their optional default values) for various HTML tags.
 

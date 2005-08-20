@@ -39,7 +39,7 @@ future.
 A class that inherits from C<Rose::Class> is not expected to allow
 objects of that class to be instantiated, since the namespace for class
 and object methods is shared.  For example, it is common for
-C<Rose::Object>-derived classes to have C<error> methods, but this would
+L<Rose::Object>-derived classes to have C<error> methods, but this would
 conflict with the C<Rose::Class> method of the same name.
 
 =head1 CLASS METHODS

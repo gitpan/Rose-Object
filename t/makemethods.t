@@ -2,7 +2,7 @@
 
 use strict;
 
-use Test::More tests => 302;
+use Test::More tests => 308;
 
 BEGIN
 {
@@ -93,6 +93,29 @@ is(join(',', sort $p->param_names), 'd', 'Delete param (hash --delete)');
 $p->param(f => 7, g => 8);
 
 is(join(',', sort $p->param_values), '4,7,8', 'Add name/value pairs (hash)');
+
+#
+# hash --get_set_init_all
+#
+
+$h = $p->fhash;
+ok(ref $h eq 'HASH' && $h->{'a'} == 1 && $h->{'b'} == 2, 'Get hash ref (hash --get-get_set_init_all)');
+%h = $p->fhash;
+ok($h{'a'} == 1 && $h{'b'} == 2, 'Get hash (hash --get-set_all)');
+
+$p->fhash(c => 3, d => 4);
+
+$h = $p->fhash;
+ok(ref $h eq 'HASH' && $h->{'c'} == 3 && $h->{'d'} == 4, 'Get hash ref 2 (hash --get-get_set_init_all)');
+%h = $p->fhash;
+ok($h{'c'} == 3 && $h{'d'} == 4, 'Get hash 2 (hash --get-set_all)');
+
+$p->fhash({ e => 5, f => 6 });
+
+$h = $p->fhash;
+ok(ref $h eq 'HASH' && $h->{'e'} == 5 && $h->{'f'} == 6, 'Get hash ref 3 (hash --get-get_set_init_all)');
+%h = $p->fhash;
+ok($h{'e'} == 5 && $h{'f'} == 6, 'Get hash 3 (hash --get-set_all)');
 
 #
 # hash --get_set_init
@@ -750,6 +773,8 @@ BEGIN
       idparams       => { interface => 'get_set_inited' },
       clear_idparams => { interface => 'clear', hash_key => 'idparams' },
       reset_idparams => { interface => 'reset', hash_key => 'idparams' },
+      
+      fhash => { interface => 'get_set_init_all' },
     ],
 
     array => 'jobs',
@@ -791,6 +816,8 @@ BEGIN
       ";
     }
   }
+
+  sub init_fhash { { a => 1, b => 2 } }
 
   sub init_arrival   { '1/24/1984 1:10pm' }
   sub init_departure { DateTime->new(month => 1, day => 30, year => 2000, 

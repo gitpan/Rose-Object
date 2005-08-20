@@ -4,7 +4,7 @@ use strict;
 
 use Carp();
 
-our $VERSION = '0.012';
+our $VERSION = '0.013';
 
 use Rose::Object::MakeMethods;
 our @ISA = qw(Rose::Object::MakeMethods);
@@ -195,6 +195,46 @@ sub hash
     $methods{$name} = sub
     {
       my($self) = shift;
+
+      # If called with no arguments, return hash contents
+      return wantarray ? %{$self->{$key}} : $self->{$key}  unless(@_);
+
+      # Set hash to arguments
+      if(@_ == 1 && ref $_[0] eq 'HASH')
+      {
+        $self->{$key} = $_[0];
+      }
+      else
+      {
+        # Push on new values and return complete set
+        Carp::croak "Odd number of items in assigment to $name"  if(@_ % 2);
+
+        $self->{$key} = {};
+
+        while(@_)
+        {
+          local $_ = shift;
+          $self->{$key}{$_} = shift;
+        }
+      }
+
+      return wantarray ? %{$self->{$key}} : $self->{$key};
+    }
+  }
+  elsif($interface eq 'get_set_init_all')
+  {
+    my $init_method = $args->{'init_method'} || "init_$name";
+
+    $methods{$name} = sub
+    {
+      my($self) = shift;
+
+      # If called with no arguments, return hash contents
+      unless(@_)
+      {
+        $self->{$key} = $self->$init_method()  unless(defined $self->{$key});
+        return wantarray ? %{$self->{$key}} : $self->{$key};
+      }
 
       # If called with no arguments, return hash contents
       return wantarray ? %{$self->{$key}} : $self->{$key}  unless(@_);
@@ -557,7 +597,7 @@ Rose::Object::MakeMethods::Generic - Create simple object methods.
 =head1 DESCRIPTION
 
 C<Rose::Object::MakeMethods::Generic> is a method maker that inherits
-from C<Rose::Object::MakeMethods>.  See the C<Rose::Object::MakeMethods>
+from L<Rose::Object::MakeMethods>.  See the L<Rose::Object::MakeMethods>
 documentation to learn about the interface.  The method types provided
 by this module are described below.  All methods work only with
 hash-based objects.
@@ -804,6 +844,13 @@ Otherwise, the hash is emptied and the arguments are taken as name/value
 pairs that are then added to the hash.  It then returns a list of
 key/value pairs in list context or a reference to the actual hash stored
 by the object in scalar context.
+
+=item C<get_set_init_all> 
+
+Behaves like the C<get_set_all> interface unless the attribute is undefined.
+In that case, the method specified by the C<init_method> option is
+called and the attribute is set to the return value of that method,
+which should be a reference to a hash.
 
 =item C<clear> 
 
