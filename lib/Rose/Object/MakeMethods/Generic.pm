@@ -4,7 +4,7 @@ use strict;
 
 use Carp();
 
-our $VERSION = '0.013';
+our $VERSION = '0.014';
 
 use Rose::Object::MakeMethods;
 our @ISA = qw(Rose::Object::MakeMethods);
@@ -467,13 +467,28 @@ sub array
   }
   elsif($interface =~ /^(?:push|add)$/)
   {
-    $methods{$name} = sub
+    if(my $init_method = $args->{'init_method'})
     {
-      my($self) = shift;
-
-      Carp::croak "Missing value(s) to add"  unless(@_);
-
-      push(@{$self->{$key}}, (@_ == 1 && ref $_[0] eq 'ARRAY') ? @{$_[0]} : @_);
+      $methods{$name} = sub
+      {
+        my($self) = shift;
+  
+        Carp::croak "Missing value(s) to add"  unless(@_);
+  
+        $self->{$key} = $self->$init_method()  unless(defined $self->{$key});
+        push(@{$self->{$key}}, (@_ == 1 && ref $_[0] && ref $_[0] eq 'ARRAY') ? @{$_[0]} : @_);
+      }    
+    }
+    else
+    {
+      $methods{$name} = sub
+      {
+        my($self) = shift;
+  
+        Carp::croak "Missing value(s) to add"  unless(@_);
+  
+        push(@{$self->{$key}}, (@_ == 1 && ref $_[0] && ref $_[0] eq 'ARRAY') ? @{$_[0]} : @_);
+      }
     }
   }
   elsif($interface eq 'pop')
@@ -955,10 +970,11 @@ attribute.  Defaults to the name of the method.
 
 =item C<init_method>
 
-The name of the method to call when initializing the value of an
-undefined array attribute.    This method should return a reference to
-an array, and is only applicable when using the C<get_set_init>
-interface. Defaults to the method name with the prefix C<init_> added.
+The name of the method to call when initializing the value of an undefined
+array attribute.    This method should return a reference to an array.  This
+option is only applicable when using the C<get_set_init>, C<push>, and C<add>
+interfaces.  When using the C<get_set_init> interface, C<init_method> defaults
+to the method name with the prefix C<init_> added.
 
 =item C<interface>
 
@@ -1014,6 +1030,16 @@ Failure to pass any arguments causes a fatal error.
 Returns true of the argument exists in the hash, false otherwise.
 Failure to pass an argument or passing more than one argument causes a
 fatal error.
+
+=item C<push>
+
+If called with a list or a reference to an array, the contents of the list or
+referenced array are added to the end of the array.  If called with no
+arguments, a fatal error will occur.
+
+=item C<add>
+
+An alias for the C<push> interface.
 
 =item C<clear> 
 

@@ -4,7 +4,7 @@ use strict;
 
 use Carp();
 
-our $VERSION = '0.011';
+our $VERSION = '0.012';
 
 use Rose::Object::MakeMethods;
 our @ISA = qw(Rose::Object::MakeMethods);
@@ -40,6 +40,7 @@ sub inheritable_set
   # adds_method:     add_required_html_attrs
   # delete_method:   delete_required_html_attr
   # deletes_method:  delete_required_html_attrs
+  # clear_method:    clear_required_html_attrs
 
   my $plural_name = $args->{'plural_name'} || $name . 's';
 
@@ -49,7 +50,8 @@ sub inheritable_set
   my $add_method      = $args->{'add_method'}     || 'add_' . $name;
   my $adds_method     = $args->{'adds_method'}    || $add_method . 's';
   my $delete_method   = $args->{'delete_method'}  || 'delete_' . $name;
-  my $deletes_method  = $args->{'deletes_method'} || $delete_method . 's';
+  my $deletes_method  = $args->{'deletes_method'} || 'delete_' . $plural_name;
+  my $clear_method    = $args->{'clear_method'}   || 'clear_' . $plural_name;
   my $value_method    = $args->{'value_method'}   || $name . '_value';
 
   my $interface      = $args->{'interface'} || 'all';
@@ -98,10 +100,19 @@ sub inheritable_set
 
   $methods{$list_method} = sub
   {
-    my($class) = ref($_[0]) || $_[0];
+    my($class) = shift;
 
-    wantarray ? sort keys %{$class->$hash_method()} : 
-                [ sort keys %{$class->$hash_method()} ];
+    $class = ref $class  if(ref $class);
+
+    if(@_)
+    {      
+      $class->$clear_method();
+      $class->$adds_method(@_);
+      return  unless(defined wantarray);
+    }
+
+    return wantarray ? sort keys %{$class->$hash_method()} : 
+                       [ sort keys %{$class->$hash_method()} ];
   };
 
   $methods{$add_method} = sub { shift->$adds_method(@_) };
@@ -148,6 +159,14 @@ sub inheritable_set
     }
 
     return $count;
+  };
+
+  $methods{$clear_method} = sub
+  {
+    my($class) = ref($_[0]) ? ref(shift) : shift;
+    my @values = $class->$list_method();
+    return  unless(@values);
+    $class->$deletes_method(@values);
   };
 
   $methods{$delete_method} = sub { shift->$deletes_method(@_) };
@@ -234,6 +253,7 @@ sub inherited_set
   # adds_method:     add_valid_html_attrs
   # delete_method:   delete_valid_html_attr
   # deletes_method:  delete_valid_html_attrs
+  # clear_method     clear_valid_html_attrs
   # inherit_method:  inherit_valid_html_attr
   # inherits_method: inherit_valid_html_attrs
 
@@ -246,7 +266,8 @@ sub inherited_set
   my $add_method      = $args->{'add_method'}      || 'add_' . $name;
   my $adds_method     = $args->{'adds_method'}     || $add_method . 's';
   my $delete_method   = $args->{'delete_method'}   || 'delete_' . $name;
-  my $deletes_method  = $args->{'deletes_method'}  || $delete_method . 's';
+  my $deletes_method  = $args->{'deletes_method'}  || 'delete_' . $plural_name;
+  my $clear_method    = $args->{'clear_method'}    || 'clear_' . $plural_name;
   my $inherit_method  = $args->{'inherit_method'}  || 'inherit_' . $name;
   my $inherits_method = $args->{'inherits_method'} || $inherit_method . 's';
 
@@ -334,8 +355,19 @@ sub inherited_set
 
   $methods{$list_method} = sub
   {
-    wantarray ? (sort keys %{$_[0]->$hash_method()}) :
-                [ sort keys %{$_[0]->$hash_method()} ];
+    my($class) = shift;
+
+    $class = ref $class  if(ref $class);
+
+    if(@_)
+    {      
+      $class->$clear_method();
+      $class->$adds_method(@_);
+      return  unless(defined wantarray);
+    }
+
+    return wantarray ? sort keys %{$class->$hash_method()} : 
+                       [ sort keys %{$class->$hash_method()} ];
   };
 
   $methods{$test_method} = sub
@@ -394,6 +426,14 @@ sub inherited_set
     }
 
     return $count;
+  };
+
+  $methods{$clear_method} = sub
+  {
+    my($class) = ref($_[0]) ? ref(shift) : shift;
+    my @values = $class->$list_method();
+    return  unless(@values);
+    $class->$deletes_method(@values);
   };
 
   $methods{$delete_method} = sub { shift->$deletes_method(@_) };
@@ -573,11 +613,7 @@ Rose::Class::MakeMethods::Set - Create class methods to manage sets.
 
 =head1 DESCRIPTION
 
-C<Rose::Class::MakeMethods::Set> is a method maker that inherits
-from L<Rose::Object::MakeMethods>.  See the L<Rose::Object::MakeMethods>
-documentation to learn about the interface.  The method types provided
-by this module are described below.  All methods work only with
-classes, not objects.
+C<Rose::Class::MakeMethods::Set> is a method maker that inherits from L<Rose::Object::MakeMethods>.  See the L<Rose::Object::MakeMethods> documentation to learn about the interface.  The method types provided by this module are described below.  All methods work only with classes, not objects.
 
 =head1 METHODS TYPES
 
@@ -585,22 +621,11 @@ classes, not objects.
 
 =item B<inheritable_set>
 
-Create a family of class methods for managing an inheritable set of
-items, each with an optional associated value.  Each item must be a
-string, or must stringify to a unique string value, since a hash is used
-internally to store the set.
+Create a family of class methods for managing an inheritable set of items, each with an optional associated value.  Each item must be a string, or must stringify to a unique string value, since a hash is used internally to store the set.
 
-The set is inherited by subclasses, but any subclass that accesses or
-manipulates the set in any way will immediately get its own private copy
-of the set I<as it exists in the superclass at the time of the access or
-manipulation>.  The superclass from which the set is copied is the
-closest ("least super") class that has ever accessed or manipulated this
-set.
+The set is inherited by subclasses, but any subclass that accesses or manipulates the set in any way will immediately get its own private copy of the set I<as it exists in the superclass at the time of the access or manipulation>.  The superclass from which the set is copied is the closest ("least super") class that has ever accessed or manipulated this set.
 
-These may sound like wacky rules, but it may help to know that this
-family of methods was created for use in the L<Rose::HTML::Objects>
-family of modules to manage the set of required HTML attributes (and
-their optional default values) for various HTML tags.
+These may sound like wacky rules, but it may help to know that this family of methods was created for use in the L<Rose::HTML::Objects> family of modules to manage the set of required HTML attributes (and their optional default values) for various HTML tags.
 
 =over 4
 
@@ -610,69 +635,55 @@ their optional default values) for various HTML tags.
 
 =item C<add_implies>
 
-A method name, or reference to a list of method names, to call when an
-item is added to the set.  Each added attribute is passed as an argument
-to each method in the C<add_implies> list.
+A method name, or reference to a list of method names, to call when an item is added to the set.  Each added attribute is passed as an argument to each method in the C<add_implies> list.
 
 =item C<add_method>
 
-The name of the class method used to add a single item to the set.
-Defaults to the method name with the prefix C<add_> added.
+The name of the class method used to add a single item to the set. Defaults to the method name with the prefix C<add_> added.
 
 =item C<adds_method>
 
-The name of the class method used to add one or more items to the set.
-Defaults to C<add_method> with C<s> added to the end.
+The name of the class method used to add one or more items to the set. Defaults to C<add_method> with C<s> added to the end.
+
+=item C<clear_method>
+
+The name of the class method used to clear the contents of the set. Defaults to C<plural_name> with a C<clear_> prefix added.
 
 =item C<delete_implies>
 
-A method name, or reference to a list of method names, to call when an
-item is removed from the set.  Each deleted attribute is passed as
-an argument to each method in the C<delete_implies> list.
+A method name, or reference to a list of method names, to call when an item is removed from the set.  Each deleted attribute is passed as an argument to each method in the C<delete_implies> list.
 
 =item C<delete_method>
 
-The name of the class method used to remove a single item from the set.
-Defaults to the method name with the prefix C<delete_> added.
+The name of the class method used to remove a single item from the set. Defaults to the method name with the prefix C<delete_> added.
 
 =item C<deletes_method>
 
-The name of the class method used to remove one or more items from the set.
-Defaults to C<delete_method> with C<s> added to the end.
+The name of the class method used to remove one or more items from the set. Defaults to C<plural_name> with a C<delete_> prefix added.
 
 =item C<hash_method>
 
-The name of the class method that returns a reference to the actual hash
-that contains the set of items in scalar context, and a shallow copy of
-the hash in list context.  Defaults to C<plural_name> with C<_hash>
-added to the end.
+The name of the class method that returns a reference to the actual hash that contains the set of items in scalar context, and a shallow copy of the hash in list context.  Defaults to C<plural_name> with C<_hash> added to the end.
 
 =item C<interface>
 
-Choose the interface.  This is kind of pointless since there is only
-one interface right now.  Defaults to C<all>, obviously.
+Choose the interface.  This is kind of pointless since there is only one interface right now.  Defaults to C<all>, obviously.
 
 =item C<list_method>
 
-The name of the class method that returns a reference to a sorted list
-of items in scalar context, or a sorted list in list context.  Defaults
-to C<plural_name>.
+The name of the class method that returns a reference to a sorted list of items in scalar context, or a sorted list in list context.  If called with any arguments, the set is cleared with a call to C<clear_method>, then the set is repopulated by passing all of the arguments to a call to C<adds_method>.  The method name defaults to C<plural_name>.
 
 =item C<plural_name>
 
-The plural name of the items, used to construct the default names for
-some other methods.  Defaults to the method name with C<s> added.
+The plural name of the items, used to construct the default names for some other methods.  Defaults to the method name with C<s> added.
 
 =item C<test_method>
 
-The name of the class method that tests for the existence of an item in
-the set.  Defaults to the method name with the prefix C<is_> added.
+The name of the class method that tests for the existence of an item in the set.  Defaults to the method name with the prefix C<is_> added.
 
 =item C<value_method>
 
-The name of the class method used to get and set the (optional) value
-associated with each item in the set.  Defaults to the method name with
-C<_value> added to the end.
+The name of the class method used to get and set the (optional) value associated with each item in the set.  Defaults to the method name with C<_value> added to the end.
 
 =back
 
@@ -682,8 +693,7 @@ C<_value> added to the end.
 
 =item C<all>
 
-Creates the entire family of methods described above.  The example
-below illustrates their use.
+Creates the entire family of methods described above.  The example below illustrates their use.
 
 =back
 
@@ -767,12 +777,9 @@ Example:
 
 =item B<inherited_set>
 
-Create a family of class methods for managing an inherited set of items.
-Each item must be a string, or must stringify to a unique string value,
-since a hash is used internally to store the set.
+Create a family of class methods for managing an inherited set of items. Each item must be a string, or must stringify to a unique string value, since a hash is used internally to store the set.
 
-An inherited set is made up of the union of the sets of all superclasses,
-minus any items that are explicitly deleted in the current class.
+An inherited set is made up of the union of the sets of all superclasses, minus any items that are explicitly deleted in the current class.
 
 =over 4
 
@@ -782,85 +789,63 @@ minus any items that are explicitly deleted in the current class.
 
 =item C<add_implies>
 
-A method name, or reference to a list of method names, to call when an
-item is added to the set.  Each added attribute is passed as an argument
-to each method in the C<add_implies> list.
+A method name, or reference to a list of method names, to call when an item is added to the set.  Each added attribute is passed as an argument to each method in the C<add_implies> list.
 
 =item C<add_method>
 
-The name of the class method used to add a single item to the set.
-Defaults to the method name with the prefix C<add_> added.
+The name of the class method used to add a single item to the set. Defaults to the method name with the prefix C<add_> added.
 
 =item C<adds_method>
 
-The name of the class method used to add one or more items to the set.
-Defaults to C<add_method> with C<s> added to the end.
+The name of the class method used to add one or more items to the set. Defaults to C<add_method> with C<s> added to the end.
 
 =item C<cache_method>
 
-The name of the class method used to retrieve (or generate, if it
-doesn't exist) the internal cache for the set.  This should be
-considered a private method, but it is listed here because it does take
-up a spot in the method namespace.  Defaults to C<plural_name> with
-C<_cache> added to the end.
+The name of the class method used to retrieve (or generate, if it doesn't exist) the internal cache for the set.  This should be considered a private method, but it is listed here because it does take up a spot in the method namespace.  Defaults to C<plural_name> with C<_cache> added to the end.
+
+=item C<clear_method>
+
+The name of the class method used to clear the contents of the set. Defaults to C<plural_name> with a C<clear_> prefix added.
 
 =item C<delete_implies>
 
-A method name, or reference to a list of method names, to call when an
-item is removed from the set.  Each deleted attribute is passed as
-an argument to each method in the C<delete_implies> list.
+A method name, or reference to a list of method names, to call when an item is removed from the set.  Each deleted attribute is passed as an argument to each method in the C<delete_implies> list.
 
 =item C<delete_method>
 
-The name of the class method used to remove a single item from the set.
-Defaults to the method name with the prefix C<delete_> added.
+The name of the class method used to remove a single item from the set. Defaults to the method name with the prefix C<delete_> added.
 
 =item C<deletes_method>
 
-The name of the class method used to remove one or more items from the set.
-Defaults to C<delete_method> with C<s> added to the end.
+The name of the class method used to remove one or more items from the set. Defaults to C<plural_name> with a C<delete_> prefix added.
 
 =item C<hash_method>
 
-The name of the class method that returns a hash (in list context) or a
-reference to a hash (in scalar context) that contains the set of items. 
-The existence of a key in the hash indicates its existence in the set. 
-Defaults to C<plural_name> with C<_hash> added to the end.
+The name of the class method that returns a hash (in list context) or a reference to a hash (in scalar context) that contains the set of items. The existence of a key in the hash indicates its existence in the set. Defaults to C<plural_name> with C<_hash> added to the end.
 
 =item C<inherit_method>
 
-The name of the class method used to indicate that an inherited value
-that was previously deleted from the set should return to being
-inherited.  Defaults to the method name with the prefix C<inherit_>
-added.
+The name of the class method used to indicate that an inherited value that was previously deleted from the set should return to being inherited.  Defaults to the method name with the prefix C<inherit_> added.
 
 =item C<inherits_method>
 
-The name of the class method used to indicate that one or more inherited
-values that were previously deleted from the set should return to being
-inherited.  Defaults to the C<inherit_method> name with C<s> added to
-the end.
+The name of the class method used to indicate that one or more inherited values that were previously deleted from the set should return to being inherited.  Defaults to the C<inherit_method> name with C<s> added to the end.
 
 =item C<interface>
 
-Choose the interface.  This is kind of pointless since there is only
-one interface right now.  Defaults to C<all>, obviously.
+Choose the interface.  This is kind of pointless since there is only one interface right now.  Defaults to C<all>, obviously.
 
 =item C<list_method>
 
-The name of the class method that returns a reference to a sorted list
-of items in scalar context, or a sorted list in list context.  Defaults
-to C<plural_name>.
+The name of the class method that returns a reference to a sorted list of items in scalar context, or a sorted list in list context.  If called with any arguments, the set is cleared with a call to C<clear_method>, then the set is repopulated by passing all of the arguments to a call to C<adds_method>.  The method name defaults to C<plural_name>.
 
 =item C<plural_name>
 
-The plural name of the items, used to construct the default names for
-some other methods.  Defaults to the method name with C<s> added.
+The plural name of the items, used to construct the default names for some other methods.  Defaults to the method name with C<s> added.
 
 =item C<test_method>
 
-The name of the class method that tests for the existence of an item in
-the set.  Defaults to the method name with the prefix C<is_> added.
+The name of the class method that tests for the existence of an item in the set.  Defaults to the method name with the prefix C<is_> added.
 
 =back
 
@@ -993,6 +978,4 @@ John C. Siracusa (siracusa@mindspring.com)
 
 =head1 COPYRIGHT
 
-Copyright (c) 2005 by John C. Siracusa.  All rights reserved.  This program is
-free software; you can redistribute it and/or modify it under the same terms
-as Perl itself.
+Copyright (c) 2005 by John C. Siracusa.  All rights reserved.  This program is free software; you can redistribute it and/or modify it under the same terms as Perl itself.

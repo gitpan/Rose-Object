@@ -2,7 +2,7 @@
 
 use strict;
 
-use Test::More tests => 308;
+use Test::More tests => 310;
 
 BEGIN
 {
@@ -494,6 +494,10 @@ is(MyObject->name_is_required('foo'), 0, "name_is_required() not set foo");
 is(MyObject->required_name_value(bar => 5), 5, 'required_name_value() 2');
 is(MyObject->required_name_value('bar'), 5, 'required_name_value() 3');
 
+MyObject->clear_required_names;
+my @names = MyObject->required_names;
+ok(@names == 0, 'clear_required_names()');
+
 #
 # inherited_set
 #
@@ -587,6 +591,10 @@ is(MySubObject->name_is_valid('argh'), 0, 'name_is_valid() inherited argh 13');
 is(MySubObject2->name_is_valid('argh'), 1, 'name_is_valid() inherited argh 14');
 is(MySubObject3->name_is_valid('argh'), 1, 'name_is_valid() inherited argh 15');
 is(MyObject->name_is_valid('argh'), 1, 'name_is_valid() inherited argh 16');
+
+MyObject->clear_valid_names;
+@names = MyObject->valid_names;
+ok(@names == 0, 'clear_valid_names()');
 
 #
 # Inherited set with add_implies
@@ -773,7 +781,7 @@ BEGIN
       idparams       => { interface => 'get_set_inited' },
       clear_idparams => { interface => 'clear', hash_key => 'idparams' },
       reset_idparams => { interface => 'reset', hash_key => 'idparams' },
-      
+
       fhash => { interface => 'get_set_init_all' },
     ],
 

@@ -296,7 +296,7 @@ sub inheritable_hash
       }
     }
   };
-  
+
   if($interface eq 'get_set_all')
   {
     $methods{$name} = sub
@@ -900,7 +900,7 @@ Example:
       ],
     );
     ...
-    
+
     package MySubClass;
     our @ISA = qw(MyClass);
     ...
@@ -909,7 +909,7 @@ Example:
 
     MyClass->params(a => 1, b => 2); # add pairs
     $val = MyClass->param('b'); # 2
-    
+
     %params = MyClass->params; # copy hash keys and values
     $params = MyClass->params; # get hash ref
 
@@ -924,9 +924,9 @@ Example:
 
     # MySubClass can manipulate its own params as it wishes
     MySubClass->param(z => 9);
-    
+
     $params = MySubClass->params; # { a => 1, b => 2, z => 9 }
-    
+
     MyClass->param_exists('a'); # false
 
     $keys = join(',', sort MyClass->param_names);  # 'c,d'
