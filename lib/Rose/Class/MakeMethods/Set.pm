@@ -4,7 +4,7 @@ use strict;
 
 use Carp();
 
-our $VERSION = '0.012';
+our $VERSION = '0.81';
 
 use Rose::Object::MakeMethods;
 our @ISA = qw(Rose::Object::MakeMethods);
@@ -82,14 +82,25 @@ sub inheritable_set
     unless(exists $Inheritable_Set{$name}{$class})
     {
       no strict 'refs';
-      foreach my $subclass (@{$class . '::ISA'})
+
+      my @parents = ($class);
+
+      while(my $parent = shift(@parents))
       {
-        if(exists $Inheritable_Set{$name}{$subclass})
+        no strict 'refs';
+        foreach my $subclass (@{$parent . '::ISA'})
         {
-          $Inheritable_Set{$name}{$class} = 
-            { %{$Inheritable_Set{$name}{$subclass}} };
-          last;
-        }
+          push(@parents, $subclass);
+
+          if(exists $Inheritable_Set{$name}{$subclass})
+          {
+            while(my($k, $v) = each(%{$Inheritable_Set{$name}{$subclass}}))
+            {
+              next  if(exists $Inheritable_Set{$name}{$class}{$k});
+              $Inheritable_Set{$name}{$class}{$k} = $v;
+            }
+          }
+        } 
       }
     }
 
@@ -613,7 +624,7 @@ Rose::Class::MakeMethods::Set - Create class methods to manage sets.
 
 =head1 DESCRIPTION
 
-C<Rose::Class::MakeMethods::Set> is a method maker that inherits from L<Rose::Object::MakeMethods>.  See the L<Rose::Object::MakeMethods> documentation to learn about the interface.  The method types provided by this module are described below.  All methods work only with classes, not objects.
+L<Rose::Class::MakeMethods::Set> is a method maker that inherits from L<Rose::Object::MakeMethods>.  See the L<Rose::Object::MakeMethods> documentation to learn about the interface.  The method types provided by this module are described below.  All methods work only with classes, not objects.
 
 =head1 METHODS TYPES
 
