@@ -9,5 +9,9 @@ lib/Rose/Object/MakeMethods/Generic.pm
 Makefile.PL
 MANIFEST			This list of files
 t/basic.t
+t/lib/Person1.pm
+t/lib/Person2.pm
 t/makemethods.t
+t/redefine.t
+
 META.yml                                 Module meta-data (added by MakeMaker)
