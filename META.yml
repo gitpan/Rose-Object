@@ -1,12 +1,13 @@
-# http://module-build.sourceforge.net/META-spec.html
-#XXXXXXX This is a prototype!!!  It will change in the future!!! XXXXX#
-name:         Rose-Object
-version:      0.82
-version_from: lib/Rose/Object.pm
-installdirs:  site
-requires:
+--- #YAML:1.0
+name:                Rose-Object
+version:             0.821
+abstract:            ~
+license:             ~
+generated_by:        ExtUtils::MakeMaker version 6.31
+distribution_type:   module
+requires:     
     Test::More:                    0
     Test::Simple:                  0
-
-distribution_type: module
-generated_by: ExtUtils::MakeMaker version 6.30
+meta-spec:
+    url:     http://module-build.sourceforge.net/META-spec-v1.2.html
+    version: 1.2
