@@ -1,9 +1,9 @@
 --- #YAML:1.0
 name:                Rose-Object
-version:             0.821
+version:             0.83
 abstract:            ~
 license:             ~
-generated_by:        ExtUtils::MakeMaker version 6.31
+generated_by:        ExtUtils::MakeMaker version 6.32
 distribution_type:   module
 requires:     
     Test::More:                    0
