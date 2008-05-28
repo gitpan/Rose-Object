@@ -298,10 +298,10 @@ Returns a list (in list context) and a reference to an array (in scalar context)
 
 =head1 AUTHOR
 
-John C. Siracusa (siracusa@mindspring.com)
+John C. Siracusa (siracusa@gmail.com)
 
 =head1 COPYRIGHT
 
-Copyright (c) 2007 by John C. Siracusa.  All rights reserved.  This program is
+Copyright (c) 2008 by John C. Siracusa.  All rights reserved.  This program is
 free software; you can redistribute it and/or modify it under the same terms
 as Perl itself.

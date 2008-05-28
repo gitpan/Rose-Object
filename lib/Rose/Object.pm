@@ -2,7 +2,7 @@ package Rose::Object;
 
 use strict;
 
-our $VERSION = '0.84';
+our $VERSION = '0.85';
 
 sub new
 {
@@ -80,7 +80,7 @@ is equivalent to the sequence:
 
 =head1 AUTHOR
 
-John C. Siracusa (siracusa@mindspring.com)
+John C. Siracusa (siracusa@gmail.com)
 
 =head1 COPYRIGHT
 

@@ -4,7 +4,7 @@ use strict;
 
 use Carp();
 
-our $VERSION = '0.82';
+our $VERSION = '0.85';
 
 __PACKAGE__->allow_apparent_reload(1);
 
@@ -254,9 +254,9 @@ sub _normalize_args
 
     while($method_type =~ s/\s+--(\w+)(?:=(\w+))?//)
     {
-      if($i++ || $2)
+      if($i++ || defined $2)
       {
-        $method_options{$1} = $2 || 1;
+        $method_options{$1} = $2;
       }
       else
       {
@@ -711,7 +711,7 @@ This is actually a subset of the code in the actual L<Rose::Object::MakeMethods:
 
 =head1 AUTHOR
 
-John C. Siracusa (siracusa@mindspring.com)
+John C. Siracusa (siracusa@gmail.com)
 
 =head1 COPYRIGHT
 

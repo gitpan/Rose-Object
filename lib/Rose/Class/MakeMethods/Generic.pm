@@ -108,6 +108,54 @@ sub inheritable_scalar
   return \%methods;
 }
 
+our %Inheritable_Boolean;
+
+sub inheritable_boolean
+{
+  my($class, $name, $args, $options) = @_;
+
+  my %methods;
+
+  my $interface = $args->{'interface'} || 'get_set';
+
+  if($interface eq 'get_set')
+  {
+    $methods{$name} = sub 
+    {
+      my($class) = ref($_[0]) ? ref(shift) : shift;
+
+      if(@_)
+      {
+        return $Inheritable_Boolean{$class}{$name} = $_[0] ? 1 : 0;
+      }
+
+      return $Inheritable_Boolean{$class}{$name}
+        if(exists $Inheritable_Boolean{$class}{$name});
+
+      my @parents = ($class);
+
+      while(my $parent = shift(@parents))
+      {
+        no strict 'refs';
+        foreach my $subclass (@{$parent . '::ISA'})
+        {
+          push(@parents, $subclass);
+
+          if(exists $Inheritable_Boolean{$subclass}{$name})
+          {
+            return $Inheritable_Boolean{$subclass}{$name}
+          }
+        }
+      }
+
+      return undef;
+    };
+  }
+  else { Carp::croak "Unknown interface: $interface" }
+
+  return \%methods;
+}
+
 our %Hash;
 # (
 #   class_name =>
@@ -424,6 +472,430 @@ sub inheritable_hash
   return \%methods;
 }
 
+use constant CLASS_VALUE     => 1;
+use constant INHERITED_VALUE => 2;
+use constant DELETED_VALUE   => 3;
+
+our %Inherited_Hash;
+# (
+#   some_name =>
+#   {
+#     class1 => 
+#     {
+#       meta  => { ... },
+#       cache => 
+#       {
+#         meta =>
+#         {
+#           attr1 => CLASS_VALUE,
+#           attr2 => DELETED_VALUE,
+#           ...
+#         },
+#         attrs =>
+#         {
+#           attr1 => value1,
+#           attr2 => value2,
+#           ...
+#         },
+#       },
+#     },
+#     class2 => ...,
+#     ...
+#   },
+#   ...
+# );
+
+# Used as array indexes to replace {'meta'}, {'attrs'}, and {'cache'}
+use constant META  => 0;
+use constant CACHE => 1;
+use constant ATTRS => 1;
+
+# XXX: This implementation is space-inefficient and pretty silly
+sub inherited_hash
+{
+  my($class, $name, $args) = @_;
+
+  my %methods;
+
+  # Interface example:
+  # name:               object_type_class
+  # plural_name:        object_type_classes
+  #
+  # get_set:            object_type_class
+  # get_set_all_method: object_type_classes
+  # keys_method:        object_type_class_keys
+  # cache_method:       object_type_classes_cache
+  # exists_method:      object_type_class_exists
+  # add_method:         add_object_type_class
+  # adds_method:        add_object_type_classes
+  # delete_method:      delete_object_type_class
+  # deletes_method:     delete_object_type_classes
+  # clear_method        clear_object_type_classes
+  # inherit_method:     inherit_object_type_class
+  # inherits_method:    inherit_object_type_classes
+
+  my $plural_name = $args->{'plural_name'} || $name . 's';
+
+  my $get_set_method     = $name;
+  my $get_set_all_method = $args->{'get_set_all_method'} || $args->{'hash_method'} || $plural_name;
+  my $keys_method        = $args->{'keys_method'}     || $name . '_keys';
+  my $cache_method       = $args->{'cache_method'}    || $plural_name . '_cache';
+  my $exists_method      = $args->{'exists_method'}   || $args->{'exists_method'} || $name . '_exists';
+  my $add_method         = $args->{'add_method'}      || 'add_' . $name;
+  my $adds_method        = $args->{'adds_method'}     || $add_method . 's';
+  my $delete_method      = $args->{'delete_method'}   || 'delete_' . $name;
+  my $deletes_method     = $args->{'deletes_method'}  || 'delete_' . $plural_name;
+  my $clear_method       = $args->{'clear_method'}    || 'clear_' . $plural_name;
+  my $inherit_method     = $args->{'inherit_method'}  || 'inherit_' . $name;
+  my $inherits_method    = $args->{'inherits_method'} || $inherit_method . 's';
+
+  my $interface       = $args->{'interface'} || 'all';
+
+  my $add_implies     = $args->{'add_implies'};
+  my $delete_implies  = $args->{'delete_implies'};
+  my $inherit_implies = $args->{'inherit_implies'};
+
+  $add_implies = [ $add_implies ]
+    if(defined $add_implies && !ref $add_implies);
+
+  $delete_implies = [ $delete_implies ]
+    if(defined $delete_implies && !ref $delete_implies);
+
+  $inherit_implies = [ $inherit_implies ]
+    if(defined $inherit_implies && !ref $inherit_implies);
+
+  $methods{$cache_method} = sub
+  {
+    my($class) = ref($_[0]) || $_[0];
+
+    if($Inherited_Hash{$name}{$class}[META]{'cache_is_valid'})
+    {
+      return   
+        wantarray ? (%{$Inherited_Hash{$name}{$class}[CACHE] ||= []}) : 
+                    ($Inherited_Hash{$name}{$class}[CACHE] ||= []);
+    }
+
+    my $cache = $Inherited_Hash{$name}{$class}[CACHE] ||= [];
+
+    my @parents = ($class);
+
+    while(my $parent = shift(@parents))
+    {
+      no strict 'refs';
+      foreach my $superclass (@{$parent . '::ISA'})
+      {
+        push(@parents, $superclass);
+
+        if($superclass->can($cache_method))
+        {
+          my $supercache = $superclass->$cache_method();
+
+          while(my($attr, $state) = each %{$supercache->[META] || {}})
+          {
+            next  if($state == DELETED_VALUE);
+
+            no warnings 'uninitialized';
+            unless(exists $cache->[ATTRS]{$attr})
+            {
+              $cache->[ATTRS]{$attr} = $supercache->[ATTRS]{$attr};
+              $cache->[META]{$attr} = INHERITED_VALUE;
+            }
+          }
+        }
+        # Slower method for superclasses that don't want to implement the
+        # cache method (which is not strictly part of the public API)
+        elsif($superclass->can($keys_method))
+        {
+          foreach my $attr ($superclass->$keys_method())
+          {
+            unless(exists $Inherited_Hash{$name}{$class}[CACHE][ATTRS]{$attr})
+            {
+              $Inherited_Hash{$name}{$class}[CACHE][META]{$attr} = INHERITED_VALUE;
+              $Inherited_Hash{$name}{$class}[CACHE][ATTRS]{$attr} = 
+                $Inherited_Hash{$name}{$superclass}[CACHE][ATTRS]{$attr};
+            }
+          }
+        }
+      } 
+    }
+
+    $Inherited_Hash{$name}{$class}[META]{'cache_is_valid'} = 1;  
+
+    my $want = wantarray;
+
+    return  unless(defined $want);
+    $want ? (%{$Inherited_Hash{$name}{$class}[CACHE] ||= []}) : 
+            ($Inherited_Hash{$name}{$class}[CACHE] ||= []);
+  };
+
+  $methods{$get_set_method} = sub
+  {
+    my($class) = ref($_[0]) ? ref(shift) : shift;
+    return 0  unless(defined $_[0]);
+
+    my $key = shift;
+
+    if(@_)
+    {
+      Carp::croak "More than one value passed to $get_set_method()"  if(@_ > 1);
+      $class->$adds_method($key, @_);
+    }
+    else
+    {
+      if($Inherited_Hash{$name}{$class}[META]{'cache_is_valid'})
+      {
+        my $cache = $Inherited_Hash{$name}{$class}[CACHE] ||= [];
+
+        no warnings 'uninitialized';
+        return $cache->[ATTRS]{$key}  unless($cache->[META]{$key} == DELETED_VALUE);
+        return undef;
+      }
+
+      my $cache = $class->$cache_method();
+
+      no warnings 'uninitialized';
+      return $cache->[ATTRS]{$key}  unless($cache->[META]{$key} == DELETED_VALUE);
+      return undef;
+    }
+  };
+
+  $methods{$keys_method} = sub
+  {
+    my($class) = shift;
+    $class = ref $class  if(ref $class);
+    return wantarray ? keys %{$class->$get_set_all_method()} : 
+                       [ keys %{$class->$get_set_all_method()} ];
+  };
+
+  $methods{$get_set_all_method} = sub
+  {
+    my($class) = shift;
+
+    $class = ref $class  if(ref $class);
+
+    if(@_)
+    {      
+      $class->$clear_method();
+      return $class->$adds_method(@_);
+    }
+
+    my $cache = $class->$cache_method();
+    my %hash  = %{$cache->[ATTRS] || {}};
+
+    foreach my $k (keys %hash)
+    {
+      delete $hash{$k}  if($Inherited_Hash{$name}{$class}[CACHE][META]{$k} == DELETED_VALUE);
+    }
+
+    return wantarray ? %hash : \%hash;
+  };
+
+  $methods{$exists_method} = sub
+  {
+    my($class) = ref($_[0]) ? ref(shift) : shift;
+
+    my $key = shift;
+
+    return 0  unless(defined $key);
+
+    if($Inherited_Hash{$name}{$class}[META]{'cache_is_valid'})
+    {
+      my $cache = $Inherited_Hash{$name}{$class}[CACHE] ||= [];
+      return (exists $cache->[ATTRS]{$key} && $cache->[META]{$key} != DELETED_VALUE) ? 1 : 0;
+    }
+
+    my $cache = $class->$cache_method();
+
+    return (exists $cache->[ATTRS]{$key} && $cache->[META]{$key} != DELETED_VALUE) ? 1 : 0;
+  };
+
+  $methods{$add_method} = sub { shift->$adds_method(@_) };
+
+  $methods{$adds_method} = sub
+  {
+    my($class) = ref($_[0]) ? ref(shift) : shift;
+    Carp::croak("Missing name/value pair(s) to add")  unless(@_);
+
+    my @attrs;
+    my $count = 0;
+
+    my $cache = $Inherited_Hash{$name}{$class}[CACHE] ||= [];
+
+    # XXX: Lame duplication to avoid copying the hash
+    if(@_ == 1 && ref $_[0] eq 'HASH')
+    {
+      while(my($attr, $value) = each(%{$_[0]}))
+      {  
+        next  unless(defined $attr);
+
+        push(@attrs, $attr);
+
+        $cache->[ATTRS]{$attr} = $value;
+        $cache->[META]{$attr}  = CLASS_VALUE;
+
+        if($add_implies)
+        {
+          foreach my $method (@$add_implies)
+          {
+            $class->$method($attr => $value);
+          }
+        }
+
+        $count++;
+      }
+    }
+    else
+    {
+      Carp::croak("Odd number of arguments passed to $adds_method")  if(@_ % 2);
+
+      while(@_)
+      {
+        my($attr, $value) = (shift, shift);
+
+        push(@attrs, $attr);
+
+        no strict 'refs';
+        next  unless(defined $attr);
+        $cache->[ATTRS]{$attr} = $value;
+        $cache->[META]{$attr}  = CLASS_VALUE;
+
+        if($add_implies)
+        {
+          foreach my $method (@$add_implies)
+          {
+            $class->$method($attr => $value);
+          }
+        }
+
+        $count++;
+      }
+    }
+
+    if($count)
+    {
+      foreach my $test_class (keys %{$Inherited_Hash{$name}})
+      {
+        if($test_class->isa($class) && $test_class ne $class)
+        {
+          $Inherited_Hash{$name}{$test_class}[META]{'cache_is_valid'} = 0;
+
+          foreach my $attr (@attrs)
+          {
+            delete $Inherited_Hash{$name}{$test_class}[CACHE][ATTRS]{$attr};
+          }
+        }
+      }
+    }
+
+    return $count;
+  };
+
+  $methods{$clear_method} = sub
+  {
+    my($class) = ref($_[0]) ? ref(shift) : shift;
+    my @keys = $class->$keys_method();
+    return  unless(@keys);
+    $class->$deletes_method(@keys);
+  };
+
+  $methods{$delete_method} = sub { shift->$deletes_method(@_) };
+
+  $methods{$deletes_method} = sub 
+  {
+    my($class) = ref($_[0]) ? ref(shift) : shift;
+    Carp::croak("Missing value(s) to delete")  unless(@_);
+
+    # Init set if it doesn't exist
+    unless(exists $Inherited_Hash{$name}{$class})
+    {
+      $class->$cache_method();
+    }
+
+    my $count = 0;
+
+    my $cache = $Inherited_Hash{$name}{$class}[CACHE] ||= [];
+
+    foreach my $attr (@_)
+    {
+      no strict 'refs';
+      next  unless(defined $attr);
+
+      if(exists $cache->[ATTRS]{$attr} && 
+                $cache->[META]{$attr} != DELETED_VALUE)
+      {
+        $cache->[META]{$attr} = DELETED_VALUE;
+        $count++;
+
+        if($delete_implies)
+        {
+          foreach my $method (@$delete_implies)
+          {
+            $class->$method($attr);
+          }
+        }
+
+        foreach my $test_class (keys %{$Inherited_Hash{$name}})
+        {
+          next  if($class eq $test_class);
+
+          my $test_cache = $Inherited_Hash{$name}{$test_class}[CACHE] ||= [];
+
+          if($test_class->isa($class) && exists $test_cache->[ATTRS]{$attr} &&
+             $test_cache->[META]{$attr} == INHERITED_VALUE)
+          {
+            delete $test_cache->[ATTRS]{$attr};
+            delete $test_cache->[META]{$attr};
+            $Inherited_Hash{$name}{$test_class}[META]{'cache_is_valid'} = 0;
+          }
+        }
+      }
+    }
+
+    return $count;
+  };
+
+  $methods{$inherit_method} = sub { shift->$inherits_method(@_) };
+
+  $methods{$inherits_method} = sub
+  {
+    my($class) = ref($_[0]) ? ref(shift) : shift;
+    Carp::croak("Missing value(s) to inherit")  unless(@_);
+
+    my $count = 0;
+
+    my $cache = $Inherited_Hash{$name}{$class}[CACHE] ||= [];
+
+    foreach my $attr (@_)
+    {
+      if(exists $cache->[ATTRS]{$attr})
+      {
+        delete $cache->[ATTRS]{$attr};
+        delete $cache->[META]{$attr};
+        $Inherited_Hash{$name}{$class}[META]{'cache_is_valid'} = 0;
+        $count++;
+      }
+
+      if($inherit_implies)
+      {
+        foreach my $method (@$inherit_implies)
+        {
+          $class->$method($attr);
+        }
+      }
+    }
+
+    return $count;
+  };
+
+  if($interface ne 'all')
+  {
+    Carp::croak "Unknown interface: $interface";
+  }
+
+  return \%methods;
+}
+
+
 1;
 
 __END__
@@ -470,11 +942,7 @@ Rose::Class::MakeMethods::Generic - Create simple class methods.
 
 =head1 DESCRIPTION
 
-L<Rose::Class::MakeMethods::Generic> is a method maker that inherits
-from L<Rose::Object::MakeMethods>.  See the L<Rose::Object::MakeMethods>
-documentation to learn about the interface.  The method types provided
-by this module are described below.  All methods work only with
-classes, not objects.
+L<Rose::Class::MakeMethods::Generic> is a method maker that inherits from L<Rose::Object::MakeMethods>.  See the L<Rose::Object::MakeMethods> documentation to learn about the interface.  The method types provided by this module are described below.  All methods work only with classes, not objects.
 
 =head1 METHODS TYPES
 
@@ -492,10 +960,7 @@ Create get/set methods for scalar class attributes.
 
 =item C<init_method>
 
-The name of the class method to call when initializing the value of an
-undefined attribute.  This option is only applicable when using the
-C<get_set_init> interface.  Defaults to the method name with the prefix
-C<init_> added.
+The name of the class method to call when initializing the value of an undefined attribute.  This option is only applicable when using the C<get_set_init> interface.  Defaults to the method name with the prefix C<init_> added.
 
 =item C<interface>
 
@@ -509,16 +974,11 @@ Choose one of the two possible interfaces.  Defaults to C<get_set>.
 
 =item C<get_set>
 
-Creates a simple get/set accessor method for a class attribute.  When
-called with an argument, the value of the attribute is set.  The current
-value of the attribute is returned.
+Creates a simple get/set accessor method for a class attribute.  When called with an argument, the value of the attribute is set.  The current value of the attribute is returned.
 
-=item C<get_set_init> 
+=item C<get_set_init>
 
-Behaves like the C<get_set> interface unless the value of the attribute
-is undefined.  In that case, the class method specified by the
-C<init_method> option is called and the attribute is set to the return
-value of that method.
+Behaves like the C<get_set> interface unless the value of the attribute is undefined.  In that case, the class method specified by the C<init_method> option is called and the attribute is set to the return value of that method.
 
 =back
 
@@ -541,10 +1001,9 @@ Example:
     MyClass->name;         # returns "Fred"
     MyClass->name('Bill'); # returns "Bill"
 
-=item B<inheritable_scalar>
+=item B<inheritable_boolean>
 
-Create get/set methods for scalar class attributes that are
-inherited by subclasses until/unless their values are changed.
+Create get/set methods for boolean class attributes that are inherited by subclasses until/unless their values are changed.
 
 =over 4
 
@@ -554,8 +1013,7 @@ inherited by subclasses until/unless their values are changed.
 
 =item C<interface>
 
-Choose the interface.  This is kind of pointless since there is only
-one interface right now.  Defaults to C<get_set>, obviously.
+Choose the interface.  This is kind of pointless since there is only one interface right now.  Defaults to C<get_set>, obviously.
 
 =back
 
@@ -565,13 +1023,87 @@ one interface right now.  Defaults to C<get_set>, obviously.
 
 =item C<get_set>
 
-Creates a get/set accessor method for a class attribute.  When called
-with an argument, the value of the attribute is set and then returned.
+Creates a get/set accessor method for a class attribute.  When called with an argument, the value of the attribute is set to 1 if that argument is true or 0 if it is false.  The value of the attribute is then returned.
 
-If called with no arguments, and if the attribute was never set for this
-class, then a left-most, breadth-first search of the parent classes is
-initiated.  The value returned is taken from first parent class 
-encountered that has ever had this attribute set.
+If called with no arguments, and if the attribute was never set for this class, then a left-most, breadth-first search of the parent classes is initiated.  The value returned is taken from first parent class encountered that has ever had this attribute set.
+
+=back
+
+=back
+
+Example:
+
+    package MyClass;
+
+    use Rose::Class::MakeMethods::Generic
+    (
+      inheritable_boolean => 'enabled',
+    );
+    ...
+
+    package MySubClass;
+    our @ISA = qw(MyClass);
+    ...
+
+    package MySubSubClass;
+    our @ISA = qw(MySubClass);
+    ...
+
+    $x = MyClass->enabled;       # undef
+    $y = MySubClass->enabled;    # undef
+    $z = MySubSubClass->enabled; # undef
+
+    MyClass->enabled(1);
+    $x = MyClass->enabled;       # 1
+    $y = MySubClass->enabled;    # 1
+    $z = MySubSubClass->enabled; # 1
+
+    MyClass->enabled(0);
+    $x = MyClass->enabled;       # 0
+    $y = MySubClass->enabled;    # 0
+    $z = MySubSubClass->enabled; # 0
+
+    MySubClass->enabled(1);
+    $x = MyClass->enabled;       # 0
+    $y = MySubClass->enabled;    # 1
+    $z = MySubSubClass->enabled; # 1
+
+    MyClass->enabled(1);
+    MySubClass->enabled(undef);
+    $x = MyClass->enabled;       # 1
+    $y = MySubClass->enabled;    # 0
+    $z = MySubSubClass->enabled; # 0
+
+    MySubSubClass->enabled(1);
+    $x = MyClass->enabled;       # 1
+    $y = MySubClass->enabled;    # 0
+    $z = MySubSubClass->enabled; # 0
+
+=item B<inheritable_scalar>
+
+Create get/set methods for scalar class attributes that are inherited by subclasses until/unless their values are changed.
+
+=over 4
+
+=item Options
+
+=over 4
+
+=item C<interface>
+
+Choose the interface.  This is kind of pointless since there is only one interface right now.  Defaults to C<get_set>, obviously.
+
+=back
+
+=item Interfaces
+
+=over 4
+
+=item C<get_set>
+
+Creates a get/set accessor method for a class attribute.  When called with an argument, the value of the attribute is set and then returned.
+
+If called with no arguments, and if the attribute was never set for this class, then a left-most, breadth-first search of the parent classes is initiated.  The value returned is taken from first parent class encountered that has ever had this attribute set.
 
 =back
 
@@ -651,76 +1183,53 @@ Choose which interface to use.  Defaults to C<get_set>.
 
 =item C<get_set>
 
-If called with no arguments, returns a list of key/value pairs in
-list context or a reference to the actual hash used to store values
-in scalar context.
+If called with no arguments, returns a list of key/value pairs in list context or a reference to the actual hash used to store values in scalar context.
 
-If called with one argument, and that argument is a reference to a hash,
-that hash reference is used as the new value for the attribute.  Returns
-a list of key/value pairs in list context or a reference to the actual
-hash used to store values in scalar context.
+If called with one argument, and that argument is a reference to a hash, that hash reference is used as the new value for the attribute.  Returns a list of key/value pairs in list context or a reference to the actual hash used to store values in scalar context.
 
-If called with one argument, and that argument is a reference to an array,
-then a list of the hash values for each key in the array is returned.
+If called with one argument, and that argument is a reference to an array, then a list of the hash values for each key in the array is returned.
 
-If called with one argument, and it is not a reference to a hash or an array,
-then the hash value for that key is returned.
+If called with one argument, and it is not a reference to a hash or an array, then the hash value for that key is returned.
 
-If called with an even number of arguments, they are taken as name/value pairs
-and are added to the hash.  It then returns a list of key/value pairs in list
-context or a reference to the actual hash used to store values in scalar
-context.
+If called with an even number of arguments, they are taken as name/value pairs and are added to the hash.  It then returns a list of key/value pairs in list context or a reference to the actual hash used to store values in scalar context.
 
 Passing an odd number of arguments greater than 1 causes a fatal error.
 
-=item C<get_set_all> 
+=item C<get_set_all>
 
-If called with no arguments, returns a list of key/value pairs in
-list context or a reference to the actual hash used to store values
-in scalar context.
+If called with no arguments, returns a list of key/value pairs in list context or a reference to the actual hash used to store values in scalar context.
 
-If called with one argument, and that argument is a reference to a hash,
-that hash reference is used as the new value for the attribute.  Returns
-a list of key/value pairs in list context or a reference to the actual
-hash used to store values in scalar context.
+If called with one argument, and that argument is a reference to a hash, that hash reference is used as the new value for the attribute.  Returns a list of key/value pairs in list context or a reference to the actual hash used to store values in scalar context.
 
-Otherwise, the hash is emptied and the arguments are taken as name/value pairs
-that are then added to the hash.  It then returns a list of key/value pairs in
-list context or a reference to the actual hash used to store values in scalar
-context.
+Otherwise, the hash is emptied and the arguments are taken as name/value pairs that are then added to the hash.  It then returns a list of key/value pairs in list context or a reference to the actual hash used to store values in scalar context.
 
-=item C<clear> 
+=item C<clear>
 
 Sets the attribute to an empty hash.
 
-=item C<reset> 
+=item C<reset>
 
 Sets the attribute to undef.
 
-=item C<delete> 
+=item C<delete>
 
-Deletes the key(s) passed as arguments.  Failure to pass any arguments
-causes a fatal error.
+Deletes the key(s) passed as arguments.  Failure to pass any arguments causes a fatal error.
 
-=item C<exists> 
+=item C<exists>
 
-Returns true of the argument exists in the hash, false otherwise.
-Failure to pass an argument or passing more than one argument causes a
-fatal error.
+Returns true of the argument exists in the hash, false otherwise. Failure to pass an argument or passing more than one argument causes a fatal error.
 
-=item C<keys> 
+=item C<keys>
 
-Returns the keys of the hash in list context, or a reference to an array
-of the keys of the hash in scalar context.  The keys are not sorted.
+Returns the keys of the hash in list context, or a reference to an array of the keys of the hash in scalar context.  The keys are not sorted.
 
-=item C<names> 
+=item C<names>
 
 An alias for the C<keys> interface.
 
-=item C<values> 
+=item C<values>
 
-Returns the values of the hash in list context, or a reference to an array
-of the values of the hash in scalar context.  The values are not sorted.
+Returns the values of the hash in list context, or a reference to an array of the values of the hash in scalar context.  The values are not sorted.
 
 =back
 
@@ -805,76 +1314,53 @@ Choose which interface to use.  Defaults to C<get_set>.
 
 =item C<get_set>
 
-If called with no arguments, returns a list of key/value pairs in
-list context or a reference to the actual hash used to store values
-in scalar context.
+If called with no arguments, returns a list of key/value pairs in list context or a reference to the actual hash used to store values in scalar context.
 
-If called with one argument, and that argument is a reference to a hash,
-that hash reference is used as the new value for the attribute.  Returns
-a list of key/value pairs in list context or a reference to the actual
-hash used to store values in scalar context.
+If called with one argument, and that argument is a reference to a hash, that hash reference is used as the new value for the attribute.  Returns a list of key/value pairs in list context or a reference to the actual hash used to store values in scalar context.
 
-If called with one argument, and that argument is a reference to an array,
-then a list of the hash values for each key in the array is returned.
+If called with one argument, and that argument is a reference to an array, then a list of the hash values for each key in the array is returned.
 
-If called with one argument, and it is not a reference to a hash or an array,
-then the hash value for that key is returned.
+If called with one argument, and it is not a reference to a hash or an array, then the hash value for that key is returned.
 
-If called with an even number of arguments, they are taken as name/value pairs
-and are added to the hash.  It then returns a list of key/value pairs in list
-context or a reference to the actual hash used to store values in scalar
-context.
+If called with an even number of arguments, they are taken as name/value pairs and are added to the hash.  It then returns a list of key/value pairs in list context or a reference to the actual hash used to store values in scalar context.
 
 Passing an odd number of arguments greater than 1 causes a fatal error.
 
-=item C<get_set_all> 
+=item C<get_set_all>
 
-If called with no arguments, returns a list of key/value pairs in
-list context or a reference to the actual hash used to store values
-in scalar context.
+If called with no arguments, returns a list of key/value pairs in list context or a reference to the actual hash used to store values in scalar context.
 
-If called with one argument, and that argument is a reference to a hash,
-that hash reference is used as the new value for the attribute.  Returns
-a list of key/value pairs in list context or a reference to the actual
-hash used to store values in scalar context.
+If called with one argument, and that argument is a reference to a hash, that hash reference is used as the new value for the attribute.  Returns a list of key/value pairs in list context or a reference to the actual hash used to store values in scalar context.
 
-Otherwise, the hash is emptied and the arguments are taken as name/value pairs
-that are then added to the hash.  It then returns a list of key/value pairs in
-list context or a reference to the actual hash used to store values in scalar
-context.
+Otherwise, the hash is emptied and the arguments are taken as name/value pairs that are then added to the hash.  It then returns a list of key/value pairs in list context or a reference to the actual hash used to store values in scalar context.
 
-=item C<clear> 
+=item C<clear>
 
 Sets the attribute to an empty hash.
 
-=item C<reset> 
+=item C<reset>
 
 Sets the attribute to undef.
 
-=item C<delete> 
+=item C<delete>
 
-Deletes the key(s) passed as arguments.  Failure to pass any arguments
-causes a fatal error.
+Deletes the key(s) passed as arguments.  Failure to pass any arguments causes a fatal error.
 
-=item C<exists> 
+=item C<exists>
 
-Returns true of the argument exists in the hash, false otherwise.
-Failure to pass an argument or passing more than one argument causes a
-fatal error.
+Returns true of the argument exists in the hash, false otherwise. Failure to pass an argument or passing more than one argument causes a fatal error.
 
-=item C<keys> 
+=item C<keys>
 
-Returns the keys of the hash in list context, or a reference to an array
-of the keys of the hash in scalar context.  The keys are not sorted.
+Returns the keys of the hash in list context, or a reference to an array of the keys of the hash in scalar context.  The keys are not sorted.
 
-=item C<names> 
+=item C<names>
 
 An alias for the C<keys> interface.
 
-=item C<values> 
+=item C<values>
 
-Returns the values of the hash in list context, or a reference to an array
-of the values of the hash in scalar context.  The values are not sorted.
+Returns the values of the hash in list context, or a reference to an array of the values of the hash in scalar context.  The values are not sorted.
 
 =back
 
@@ -944,11 +1430,177 @@ Example:
     # Inherit a copy of params from MyClass
     $params = MySubClass->params; # { d => 4, f => 7, g => 8 }
 
+=item B<inherited_hash>
+
+Create a family of class methods for managing an inherited hash.
+
+An inherited hash is made up of the union of the hashes of all superclasses, minus any keys that are explicitly deleted in the current class.
+
+=over 4
+
+=item Options
+
+=over 4
+
+=item C<add_implies>
+
+A method name, or reference to a list of method names, to call when a key is added to the hash.  Each added name/value pair is passed to each method in the C<add_implies> list, one pair at a time.
+
+=item C<add_method>
+
+The name of the class method used to add a single name/value pair to the hash. Defaults to the method name with the prefix C<add_> added.
+
+=item C<adds_method>
+
+The name of the class method used to add one or more name/value pairs to the hash.  Defaults to C<add_method> with C<s> added to the end.
+
+=item C<cache_method>
+
+The name of the class method used to retrieve (or generate, if it doesn't exist) the internal cache for the hash.  This should be considered a private method, but it is listed here because it does take up a spot in the method namespace.  Defaults to C<plural_name> with C<_cache> added to the end.
+
+=item C<clear_method>
+
+The name of the class method used to clear the contents of the hash.  Defaults to C<plural_name> with a C<clear_> prefix added.
+
+=item C<delete_implies>
+
+A method name, or reference to a list of method names, to call when a key is removed from the hash.  Each deleted key is passed as an argument to each method in the C<delete_implies> list, one key per call.
+
+=item C<delete_method>
+
+The name of the class method used to remove a single key from the hash.  Defaults to the method name with the prefix C<delete_> added.
+
+=item C<deletes_method>
+
+The name of the class method used to remove one or more keys from the hash.  Defaults to C<plural_name> with a C<delete_> prefix added.
+
+=item C<exists_method>
+
+The name of the class method that tests for the existence of a key in the hash.  Defaults to the method name with the suffix C<_exists> added.
+
+=item C<get_set_all_method>
+
+The name of the class method use to set or fetch the entire hash.  The hash may be passed as a reference to a hash or as a list of name/value pairs.  Returns the hash (in list context) or a reference to a hash (in scalar context).  Defaults to C<plural_name>.
+
+=item C<hash_method>
+
+This is an alias for the C<get_set_all_method> parameter.
+
+=item C<inherit_method>
+
+The name of the class method used to indicate that an inherited key that was previously deleted from the hash should return to being inherited.  Defaults to the method name with the prefix C<inherit_> added.
+
+=item C<inherits_method>
+
+The name of the class method used to indicate that one or more inherited keys that were previously deleted from the hash should return to being inherited.  Defaults to the C<inherit_method> name with C<s> added to the end.
+
+=item C<interface>
+
+Choose the interface.  This is kind of pointless since there is only one interface right now.  Defaults to C<all>, obviously.
+
+=item C<keys_method>
+
+The name of the class method that returns a reference to a list of keys in scalar context, or a list of keys in list context.   Defaults to to C<plural_name>.
+
+=item C<plural_name>
+
+The plural version of the method name, used to construct the default names for some other methods.  Defaults to the method name with C<s> added.
+
+=back
+
+=item Interfaces
+
+=over 4
+
+=item C<all>
+
+Creates the entire family of methods described above.  The example
+below illustrates their use.
+
+=back
+
+=back
+
+Example:
+
+    package MyClass;
+
+    use Rose::Class::MakeMethods::Generic
+    (
+      inherited_hash =>
+      [
+        pet_color =>
+        {
+          keys_method     => 'pets',
+          delete_implies  => 'delete_special_pet_color',
+          inherit_implies => 'inherit_special_pet_color',
+        },
+
+        special_pet_color =>
+        {
+          keys_method     => 'special_pets',
+          add_implies => 'add_pet_color',
+        },
+      ],
+    );
+    ...
+
+    package MySubClass;
+    our @ISA = qw(MyClass);
+    ...
+
+
+    MyClass->pet_colors(Fido => 'white',
+                        Max  => 'black',
+                        Spot => 'yellow');
+
+    MyClass->special_pet_color(Toby => 'tan');
+
+    MyClass->pets;              # Fido, Max, Spot, Toby
+    MyClass->special_pets;      # Toby
+
+    MySubClass->pets;           # Fido, Max, Spot, Toby
+    MyClass->pet_color('Toby'); # tan
+
+    MySubClass->special_pet_color(Toby => 'gold');
+
+    MyClass->pet_color('Toby');         # tan
+    MyClass->special_pet_color('Toby'); # tan
+
+    MySubClass->pet_color('Toby');         # gold
+    MySubClass->special_pet_color('Toby'); # gold
+
+    MySubClass->inherit_pet_color('Toby');
+
+    MySubClass->pet_color('Toby');         # tan
+    MySubClass->special_pet_color('Toby'); # tan
+
+    MyClass->delete_pet_color('Max');
+
+    MyClass->pets;    # Fido, Spot, Toby
+    MySubClass->pets; # Fido, Spot, Toby
+
+    MyClass->special_pet_color(Max => 'mauve');
+
+    MyClass->pets;    # Fido, Max, Spot, Toby
+    MySubClass->pets; # Fido, Max, Spot, Toby
+
+    MyClass->special_pets;    # Max, Toby
+    MySubClass->special_pets; # Max, Toby
+
+    MySubClass->delete_special_pet_color('Max');
+
+    MyClass->pets;    # Fido, Max, Spot, Toby
+    MySubClass->pets; # Fido, Max, Spot, Toby
+
+    MyClass->special_pets;    # Max, Toby
+    MySubClass->special_pets; # Toby
+
 =back
 
 =head1 AUTHOR
 
-John C. Siracusa (siracusa@mindspring.com)
+John C. Siracusa (siracusa@gmail.com)
 
 =head1 COPYRIGHT
 
