@@ -2,17 +2,10 @@
 
 use strict;
 
-use Test::More tests => 629;
+use Test::More tests => 627;
 
 BEGIN
 {
-  # Don't use Class::XSAccessor unless invoked from t/makemethods-xs.t
-  # as indicated by magic (false) value 0, set in t/makemethods-xs.t
-  unless(defined $ENV{'ROSE_OBJECT_NO_CLASS_XSACCESOR'})
-  {
-    $ENV{'ROSE_OBJECT_NO_CLASS_XSACCESOR'} = 1;
-  }
-
   use_ok('Rose::Object');
   use_ok('Rose::Object::MakeMethods::Generic');
   use_ok('Rose::Class');
@@ -31,9 +24,8 @@ ok(ref $p eq 'Person', 'Construct object (no init)');
 # scalar
 #
 
-is($p->bar, undef, 'Get named attribute (scalar)');
-is($p->bar('bar'), 'bar', 'Set named attribute 1 (scalar)');
-is($p->bar, 'bar', 'Set named attribute 2 (scalar)');
+$p->bar('bar');
+is($p->bar, 'bar', 'Set named attribute (scalar)');
 
 #
 # scalar --get_set_init
