@@ -8,7 +8,7 @@ BEGIN
   no warnings 'once';
 
   # Apparently we can't just skip_all with -d, because the 
-  # debugger breaks at Test::Testers END block
+  # debugger breaks at Test::Testers END block.
   if($] <= 5.010000)
   {
     pass;
@@ -40,4 +40,3 @@ eval { require Person1 };
 ok(!$@, 'double load');
 
 done_testing;
-

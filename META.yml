@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:               Rose-Object
-version:            0.857
+version:            0.858
 abstract:           A simple object base class.
 author:
     - John Siracusa <siracusa@gmail.com>
