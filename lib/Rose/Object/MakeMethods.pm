@@ -182,15 +182,15 @@ sub sub_identity
   {
     local $@;
 
-	eval # if this fails, the identity is undefined
-	{
-	  require B;
-	  my $cv = B::svref_2object($code);
-	  return  unless($cv->isa('B::CV'));
-	  @id = ($cv->GV->STASH->NAME, $cv->GV->NAME);
-	};
+    eval # if this fails, the identity is undefined
+    {
+      require B;
+      my $cv = B::svref_2object($code);
+      return  unless($cv->isa('B::CV'));
+      @id = ($cv->GV->STASH->NAME, $cv->GV->NAME);
+    };
 
-	# Ignore errors
+    # Ignore errors
   }
 
   return @id;
@@ -740,4 +740,4 @@ John C. Siracusa (siracusa@gmail.com)
 
 =head1 LICENSE
 
-Copyright (c) 2006 by John C. Siracusa.  All rights reserved.  This program is free software; you can redistribute it and/or modify it under the same terms as Perl itself.
+Copyright (c) 2010 by John C. Siracusa.  All rights reserved.  This program is free software; you can redistribute it and/or modify it under the same terms as Perl itself.
