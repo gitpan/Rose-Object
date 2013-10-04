@@ -17,4 +17,5 @@ t/makemethods-xs.t
 t/pod.t
 t/redefine.t
 xt/debugger.t
-META.yml                                 Module meta-data (added by MakeMaker)
+META.yml                                 Module YAML meta-data (added by MakeMaker)
+META.json                                Module JSON meta-data (added by MakeMaker)
